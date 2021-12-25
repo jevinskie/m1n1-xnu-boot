@@ -5,7 +5,7 @@ _va_base = 0xFFFFFE0007004000;
 
 _stack_size = 0x20000;
 
-_max_payload_size = 64*1024*1024;
+_max_payload_size = 128*1024*1024;
 
 /* We are actually relocatable */
 . = 0;

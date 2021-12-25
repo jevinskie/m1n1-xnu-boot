@@ -9,7 +9,7 @@ from .tgtypes import *
 from .utils import *
 
 # Create serial connection
-iface = UartInterface()
+iface = UartInterface(debug=False)
 # Construct m1n1 proxy layer over serial connection
 p = M1N1Proxy(iface, debug=False)
 # Customise parameters of proxy and serial port

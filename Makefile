@@ -1,6 +1,6 @@
-ARCH ?= aarch64-linux-gnu-
+ARCH ?= aarch64-none-elf-
 
-ifeq ($(shell uname),Darwin)
+ifeq ($(shell uname),DarwinIgnoreMe)
 USE_CLANG ?= 1
 $(info INFO: Building on Darwin)
 ifeq ($(shell uname -p),arm)
@@ -13,14 +13,18 @@ endif
 
 ifeq ($(USE_CLANG),1)
 CC := $(TOOLCHAIN)clang --target=$(ARCH)
+CXX := $(TOOLCHAIN)clang++ --target=$(ARCH)
 AS := $(TOOLCHAIN)clang --target=$(ARCH)
+AR := $(TOOLCHAIN)llvm-ar --target=$(ARCH)
 LD := $(TOOLCHAIN)ld.lld
 OBJCOPY := $(TOOLCHAIN)llvm-objcopy
 CLANG_FORMAT := $(TOOLCHAIN)clang-format
 EXTRA_CFLAGS ?=
 else
 CC := $(TOOLCHAIN)$(ARCH)gcc
+CXX := $(TOOLCHAIN)$(ARCH)g++
 AS := $(TOOLCHAIN)$(ARCH)gcc
+AR := $(TOOLCHAIN)$(ARCH)ar
 LD := $(TOOLCHAIN)$(ARCH)ld
 OBJCOPY := $(TOOLCHAIN)$(ARCH)objcopy
 CLANG_FORMAT := clang-format
@@ -34,6 +38,8 @@ CFLAGS := -O2 -Wall -g -Wundef -Werror=strict-prototypes -fno-common -fno-PIE \
 	-nostdinc -isystem $(shell $(CC) -print-file-name=include) -isystem sysinc \
 	-fno-stack-protector -mgeneral-regs-only -mstrict-align -march=armv8.2-a \
 	$(EXTRA_CFLAGS)
+
+CFLAGS += -I jevmachopp/include
 
 LDFLAGS := -T m1n1.ld -EL -maarch64elf --no-undefined -X -Bsymbolic \
 	-z notext --no-apply-dynamic-relocs --orphan-handling=warn \
@@ -97,8 +103,9 @@ NAME := m1n1
 TARGET := m1n1.macho
 
 DEPDIR := build/.deps
+ROOTDIR := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 
-.PHONY: all clean format update_tag
+.PHONY: all clean format update_tag jevmachopp
 all: build/$(TARGET) $(DTBS)
 clean:
 	rm -rf build/*
@@ -110,32 +117,32 @@ format-check:
 build/dtb/%.dts: dts/%.dts
 	@echo "  DTCPP $@"
 	@mkdir -p "$(dir $@)"
-	@$(CC) -E -nostdinc -I dts -x assembler-with-cpp -o $@ $<
+	$(CC) -E -nostdinc -I dts -x assembler-with-cpp -o $@ $<
 
 build/dtb/%.dtb: build/dtb/%.dts
 	@echo "  DTC   $@"
 	@mkdir -p "$(dir $@)"
-	@dtc -I dts -i dts $< -o $@
+	dtc -I dts -i dts $< -o $@
 
 build/%.o: src/%.S
 	@echo "  AS    $@"
 	@mkdir -p $(DEPDIR)
 	@mkdir -p "$(dir $@)"
-	@$(AS) -c $(CFLAGS) -MMD -MF $(DEPDIR)/$(*F).d -MQ "$@" -MP -o $@ $<
+	$(AS) -c $(CFLAGS) -MMD -MF $(DEPDIR)/$(*F).d -MQ "$@" -MP -o $@ $<
 
 build/%.o: src/%.c
 	@echo "  CC    $@"
 	@mkdir -p $(DEPDIR)
 	@mkdir -p "$(dir $@)"
-	@$(CC) -c $(CFLAGS) -MMD -MF $(DEPDIR)/$(*F).d -MQ "$@" -MP -o $@ $<
+	$(CC) -c $(CFLAGS) -MMD -MF $(DEPDIR)/$(*F).d -MQ "$@" -MP -o $@ $<
 
-build/$(NAME).elf: $(BUILD_OBJS) m1n1.ld
+build/$(NAME).elf: $(BUILD_OBJS) build/jevmachopp/libjevmachopp.a m1n1.ld
 	@echo "  LD    $@"
-	@$(LD) $(LDFLAGS) -o $@ $(BUILD_OBJS)
+	$(LD) $(LDFLAGS) -o $@ $(BUILD_OBJS) build/jevmachopp/libjevmachopp.a
 
 build/$(NAME).macho: build/$(NAME).elf
 	@echo "  MACHO $@"
-	@$(OBJCOPY) -O binary --strip-debug $< $@
+	$(OBJCOPY) -O binary --strip-debug $< $@
 
 update_tag:
 	@echo "#define BUILD_TAG \"$$(git describe --always --dirty)\"" > build/build_tag.tmp
@@ -158,5 +165,7 @@ build/%.bin: font/%.bin
 
 build/main.o: build/build_tag.h src/main.c
 build/usb_dwc3.o: build/build_tag.h src/usb_dwc3.c
+
+-include jevmachopp/Makefile
 
 -include $(DEPDIR)/*

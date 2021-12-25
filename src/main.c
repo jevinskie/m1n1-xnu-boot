@@ -22,6 +22,10 @@
 #include "wdt.h"
 #include "xnuboot.h"
 
+#include <jevmachopp/c/jevdtree.h>
+#include <jevmachopp/c/jevmacho.h>
+#include <jevmachopp/c/jevxnuboot.h>
+
 #include "../build/build_tag.h"
 
 struct vector_args next_stage;
@@ -53,6 +57,9 @@ void get_device_info(void)
     printf("\n");
 }
 
+extern char _xnu_jump_stub_begin;
+extern char _xnu_jump_stub_end;
+
 void run_actions(void)
 {
     printf("Checking for payloads...\n");
@@ -67,18 +74,32 @@ void run_actions(void)
     usb_init();
     usb_iodev_init();
 
-    printf("Running proxy...\n");
+    printf("trying xnu boot\n");
+    load_and_prep_xnu_kernelcache(boot_args_addr);
+    printf("xnu boot failed\n");
 
+    // printf("dumping concatenated macho...\n");
+    // dump_macho((void *)&_payload_start);
+
+    // printf("dumping Apple dtree...\n");
+    // dump_dtree(adt);
+
+    if (next_stage.entry) {
+        printf("macho loaded and prepped, returning to reboot\n");
+        return;
+    }
+    printf("Running proxy... jev edition!!\n");
     uartproxy_run(NULL);
 }
 
 void m1n1_main(void)
 {
-    printf("\n\nm1n1 v%s\n", m1n1_version);
+    printf("\n\nm1n1 v%s jev edition!!\n", m1n1_version);
     printf("Copyright (C) 2021 The Asahi Linux Contributors\n");
     printf("Licensed under the MIT license\n\n");
 
-    printf("Running in EL%lu\n\n", mrs(CurrentEL) >> 2);
+    printf("Running in EL%lu\n", mrs(CurrentEL) >> 2);
+    printf("Payload size: 0x%lx\n\n", payload_size());
 
     get_device_info();
 
@@ -114,9 +135,12 @@ void m1n1_main(void)
     mmu_shutdown();
 
     printf("Vectoring to next stage...\n");
+    printf("entry: %p a0: %p a1: %p a2: %p a3: %p a4: %p\n",
+            (void*)next_stage.entry, (void*)next_stage.args[0], (void*)next_stage.args[1],
+            (void*)next_stage.args[2], (void*)next_stage.args[3], (void*)next_stage.args[4]);
 
     next_stage.entry(next_stage.args[0], next_stage.args[1], next_stage.args[2],
-                     next_stage.args[3]);
+                     next_stage.args[3], next_stage.args[4]);
 
     panic("Next stage returned!\n");
 }

@@ -56,6 +56,7 @@ if args.xnu:
     print(f"Adjusting addresses in ADT...")
     u.adt["chosen"]["memory-map"].SEPFW = (new_base + sepfw_off, sepfw_length)
     u.adt["chosen"]["memory-map"].BootArgs = (image_addr + bootargs_off, bootargs_size)
+    u.adt["chosen"].internal_use_only_unit = 1
 
     print("Setting secondary CPU RVBARs...")
 
@@ -91,15 +92,15 @@ print(f"Copying stub...")
 
 stub = asm.ARMAsm(f"""
 1:
-        ldp x4, x5, [x1], #16
-        stp x4, x5, [x2]
+        ldp x5, x6, [x1], #16
+        stp x5, x6, [x2]
         dc cvau, x2
         ic ivau, x2
         add x2, x2, #16
         sub x3, x3, #16
         cbnz x3, 1b
 
-        ldr x1, ={entry}
+        mov x1, x4
         br x1
 """, image_addr + image_size)
 
@@ -116,10 +117,10 @@ if args.call:
     except ProxyCommandError:
         pass
     print(f"Jumping to stub at 0x{stub.addr:x}")
-    p.call(stub.addr, new_base + bootargs_off, image_addr, new_base, image_size, reboot=True)
+    p.call(stub.addr, new_base + bootargs_off, image_addr, new_base, image_size, entry, reboot=True)
 else:
     print(f"Reloading into stub at 0x{stub.addr:x}")
-    p.reload(stub.addr, new_base + bootargs_off, image_addr, new_base, image_size)
+    p.reload(stub.addr, new_base + bootargs_off, image_addr, new_base, image_size, entry)
 
 iface.nop()
 print("Proxy is alive again")

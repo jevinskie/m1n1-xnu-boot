@@ -239,3 +239,8 @@ int payload_run(void)
 
     return -1;
 }
+
+u64 payload_size(void)
+{
+    return _payload_end - _payload_start;
+}

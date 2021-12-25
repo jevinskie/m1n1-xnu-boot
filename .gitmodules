@@ -1,3 +1,6 @@
 [submodule "artwork"]
 	path = artwork
 	url = https://github.com/AsahiLinux/artwork.git
+[submodule "jevmachopp"]
+	path = jevmachopp
+	url = https://github.com/jevinskie/jevmachopp
